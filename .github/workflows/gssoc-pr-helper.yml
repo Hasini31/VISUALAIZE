@@ -88,17 +88,57 @@ jobs:
               }
             }
 
-            // --- STEP 3: CONSTRUCT WELCOME COMMENT ---
-            const commentBody = [
-              `### Hello @${creator}! 👋`,
-              `Thank you for your contribution to **${context.repo.repo}**! We are thrilled to have you here.`,
-              `Based on the linked issue reference, we have automatically applied the relevant GSSOC labels to your PR:`,
-              `- **Event Label:** GSSOC 2026`,
-              `- **Level Label:** ${levelLabel || 'Not specified'}`,
-              `Please ensure you follow the GSSOC guidelines and complete your tasks. If you need any assistance, feel free to tag the mentors or maintainers.`,
-              `Happy coding! 🚀`,
-              `_gssoc-pr-helper-signature_`
-            ].join('\n');
+            // --- STEP 3: CONSTRUCT IMMERSIVE WELCOME COMMENT ---
+            let issueStatusMarkdown = '';
+            if (issueInfo) {
+              const points = {
+                'level:beginner': '20 pts',
+                'level:intermediate': '35 pts',
+                'level:advanced': '55 pts',
+                'level:critical': '80 pts'
+              }[levelLabel] || '20 pts';
+              
+              issueStatusMarkdown = `### 🔗 Linked Issue Verified!
+- **Issue**: [#${issueInfo.number}](${issueInfo.html_url}) — *${issueInfo.title}*
+- **GSSOC 2026 Difficulty**: \`${levelLabel || 'level:beginner'}\` (**${points}** base difficulty points upon merge!)
+- **Status**: We have automatically synced and copied the **${levelLabel || 'level:beginner'}** difficulty label to this PR!`;
+            } else {
+              issueStatusMarkdown = `### ⚠️ Warning: Linked Issue Missing!
+We couldn't detect a valid assigned issue linked in your PR description.
+To receive points for **GSSOC 2026**, your PR **must** link to your assigned issue.
+- **How to fix**: Edit your PR description to add \`Closes #123\` (replace \`123\` with your assigned issue number) under the **Related Issue** section.
+- *Once linked, our automated systems will synchronize the score level!*`;
+            }
+
+            const commentBody = `## 🎨 Welcome to VISUALAIZE Pro, @${creator}! 🚀
+
+Thank you for opening this pull request and helping us build the future of diagram visualization! We are thrilled to have you participating in **GirlScript Summer of Code (GSSOC) 2026**!
+
+${issueStatusMarkdown}
+
+---
+
+### 🏆 GSSOC 2026 PR Labels Cheat-sheet
+
+Use this quick-reference guide to check the scoring and labeling status of your pull request:
+
+| Category | Available Labels | Description |
+| :--- | :--- | :--- |
+| **Difficulty** <br>*(Required, Pick One)* | \`level:beginner\` (20 pts) <br>\`level:intermediate\` (35 pts) <br>\`level:advanced\` (55 pts) <br>\`level:critical\` (80 pts) | Copied automatically from your linked issue. |
+| **Quality** <br>*(Optional Multiplier)* | \`quality:clean\` <br>\`quality:exceptional\` | Mentors can apply these for outstanding, clean contributions. |
+| **Type** <br>*(Optional Stackable)* | \`type:bug\`, \`type:feature\`, \`type:docs\`, \`type:testing\`, \`type:security\`, \`type:performance\`, \`type:design\`, \`type:refactor\`, \`type:devops\`, \`type:accessibility\` | Optional tags reflecting the type of files modified. |
+
+### 📊 Score Calculation Formula
+\`Score = 50 + (Difficulty Base × Quality Multiplier) + Type Bonus\`
+
+📌 **Crucial Rules for Merging:**
+- ⭐️ **\`gssoc:approved\`** gives **+50 base points** and is **required on every PR** — without it, the contribution will not count.
+- 🧑‍🏫 Mentors must add **\`mentor:username\`** to PRs they reviewed to receive attribution points.
+- 🔄 Project data, PR contributions, and leaderboards refresh once daily at **3:30–4:30 AM IST**. Allow 24–48 hours after merge for points to appear.
+
+*Keep up the excellent work, and happy coding!* 💻✨
+
+_gssoc-pr-helper-signature_`;
 
             // --- STEP 4: CHECK AND POST WELCOME COMMENT ---
             try {
