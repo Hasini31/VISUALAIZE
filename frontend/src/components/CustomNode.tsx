@@ -14,6 +14,7 @@ const CustomNode = ({ data, selected }: CustomNodeProps) => {
   let borderColor = "border-blue-400/30";
 
   const label = (data?.label || "").toLowerCase();
+  
   if (label.includes('start')) {
     Icon = ArrowRightCircle;
     glowColor = "shadow-emerald-500/50";
@@ -40,7 +41,6 @@ const CustomNode = ({ data, selected }: CustomNodeProps) => {
       <Handle 
         type="target" 
         position={Position.Top} 
-        position={Position.Left} 
         aria-label="Input connection"
         className="!w-3 !h-3 !bg-slate-200 !border-2 !border-slate-900 shadow-[0_0_10px_white]" 
       />
@@ -56,12 +56,9 @@ const CustomNode = ({ data, selected }: CustomNodeProps) => {
         </div>
         
         <div className="flex flex-col">
-          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">State</span>
-          <span className={`text-sm font-semibold tracking-wide ${selected ? 'text-white' : 'text-slate-200'}`}>
-            {data?.label || "Unknown Node"}
           <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">State</span>
           <span className={`text-sm font-semibold tracking-wide ${selected ? 'text-white' : 'text-slate-100'}`}>
-            {data.label}
+            {data?.label || "Unknown Node"}
           </span>
         </div>
       </div>

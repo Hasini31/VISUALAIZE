@@ -1,5 +1,7 @@
 // frontend/src/components/GraphEditor.tsx
 'use client';
+import HistoryPanel from './HistoryPanel';
+import { saveToHistory, getHistory, deleteFromHistory, SavedDiagram } from '../utils/storage';
 
 import { toPng } from 'html-to-image';
 import { getLayoutedElements } from '../utils/layout';
@@ -8,7 +10,7 @@ import {
   Activity, BookOpen, PlayCircle, Layers, Code, Copy, Check, Zap,
   Globe, Mic, Download, ChevronDown, MessageSquare, Send, Paperclip,
   PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw,
-  Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize, Lock, Unlock
+  Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize, Lock, Unlock, History
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
@@ -283,6 +285,12 @@ function EditorContent({ onBack }: EditorProps) {
 
   const [cursors, setCursors] = useState<Record<string, { x: number; y: number }>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [savedHistory, setSavedHistory] = useState<SavedDiagram[]>([]);
+
+  useEffect(() => {
+    setSavedHistory(getHistory());
+  }, []);
 
   const codeCache = useRef(new Map<string, codeObject>());
   const reactFlowWrapper = useRef(null);
@@ -461,6 +469,7 @@ function EditorContent({ onBack }: EditorProps) {
       }));
 
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rawNodes, rawEdges);
+      
       const merged = mergeGraph(
         { nodes: layoutedNodes, edges: layoutedEdges },
         { nodes: getNodes(), edges: getEdges() },
@@ -470,6 +479,11 @@ function EditorContent({ onBack }: EditorProps) {
         setNodes(merged.nodes);
         setEdges(merged.edges);
       });
+
+      const newEntry = saveToHistory(text, data, merged.nodes, merged.edges);
+      if (newEntry) {
+        setSavedHistory(prev => [newEntry, ...prev].slice(0, 20));
+      }
 
       if (fitViewTimeoutRef.current) clearTimeout(fitViewTimeoutRef.current);
       fitViewTimeoutRef.current = setTimeout(() => fitView({ padding: 0.15, duration: 800 }), 150);
@@ -499,6 +513,20 @@ function EditorContent({ onBack }: EditorProps) {
     NODE_DELETE: "NODE_DELETE",
     EDGE_ADD: "EDGE_ADD",
     EDGE_DELETE: "EDGE_DELETE"
+  };
+
+  const loadFromHistory = (diagram: SavedDiagram) => {
+    setPrompt(diagram.prompt);
+    setGraphData(diagram.data as any);
+    setNodes(diagram.data.nodes);
+    setEdges(diagram.data.edges);
+    setHistoryOpen(false);
+    setIsSidebarOpen(true);
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    const updated = deleteFromHistory(id);
+    if (updated) setSavedHistory(updated);
   };
 
   const regenerateCode = async (newLang: string) => {
@@ -727,6 +755,14 @@ function EditorContent({ onBack }: EditorProps) {
 
       <style>{glassControlsStyle}</style>
 
+      <HistoryPanel 
+        isOpen={historyOpen} 
+        onClose={() => setHistoryOpen(false)} 
+        history={savedHistory}
+        onLoad={loadFromHistory}
+        onDelete={handleDeleteHistory}
+      />
+
       {/* 3D holographic background — fades out once the graph is generated */}
       <div className={`absolute inset-0 transition-opacity duration-1000 z-0 ${showBackground ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <HolographicScene />
@@ -750,6 +786,15 @@ function EditorContent({ onBack }: EditorProps) {
           </button>
 
           <div className="flex gap-4 pointer-events-auto">
+             {/* --- ADDED HISTORY BUTTON HERE --- */}
+             <button 
+                onClick={() => setHistoryOpen(true)}
+                className="focus-ring flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur-md border border-white/10 text-xs text-slate-300 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
+             >
+                <History size={14} /> HISTORY
+             </button>
+             {/* ------------------------------- */}
+
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/60 backdrop-blur-md border border-white/10 text-xs font-mono text-emerald-400 shadow-lg">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/> ONLINE
              </div>
