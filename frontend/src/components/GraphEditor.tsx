@@ -10,8 +10,7 @@ import {
   Activity, BookOpen, PlayCircle, Layers, Code, Copy, Check, Zap,
   Globe, Mic, Download, ChevronDown, MessageSquare, Send, Paperclip,
   PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw,
-  Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize, Lock, Unlock, History, HelpCircle,
-  Trash2
+  Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize, Lock, Unlock, History,Hand, MousePointer2
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
@@ -24,7 +23,8 @@ import ReactFlow, {
   OnEdgesChange,
   OnNodesChange,
   ReactFlowProvider,
-  useReactFlow
+  useReactFlow,
+  SelectionMode 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomNode from '../components/CustomNode';
@@ -279,6 +279,8 @@ function EditorContent({ onBack }: EditorProps) {
   const [isRefineMode, setIsRefineMode] = useState(false);
   const clientId = useRef(crypto.randomUUID());
   const roomId = useRef("room_1");
+  //new
+  const [panOnDrag, setPanOnDrag] = useState(true);
   const [errorState, setErrorState] = useState<{
     show: boolean;
     title: string;
@@ -290,7 +292,6 @@ function EditorContent({ onBack }: EditorProps) {
   const [cursors, setCursors] = useState<Record<string, { x: number; y: number }>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   const [savedHistory, setSavedHistory] = useState<SavedDiagram[]>([]);
 
   useEffect(() => {
@@ -809,28 +810,6 @@ function EditorContent({ onBack }: EditorProps) {
 
       <style>{glassControlsStyle}</style>
 
-      {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Keyboard Shortcuts</h2>
-
-            <ul className="space-y-2 text-sm">
-              <li>Ctrl + Scroll → Zoom</li>
-              <li>Space + Drag → Pan Canvas</li>
-              <li>Esc → Exit Fullscreen</li>
-              <li>Cmd/Ctrl + Enter → Generate Diagram</li>
-            </ul>
-
-            <button
-              onClick={() => setShowShortcuts(false)}
-              className="mt-4 px-4 py-2 rounded-lg bg-purple-600"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
       <HistoryPanel 
         isOpen={historyOpen} 
         onClose={() => setHistoryOpen(false)} 
@@ -862,29 +841,14 @@ function EditorContent({ onBack }: EditorProps) {
           </button>
 
           <div className="flex gap-4 pointer-events-auto">
+             {/* --- ADDED HISTORY BUTTON HERE --- */}
              <button 
                 onClick={() => setHistoryOpen(true)}
                 className="focus-ring flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur-md border border-white/10 text-xs text-slate-300 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
              >
                 <History size={14} /> HISTORY
              </button>
-              <button
-                onClick={() => setShowShortcuts(true)}
-                className="focus-ring flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur-md border border-white/10 text-xs text-slate-300 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
-              >
-                <HelpCircle size={14} />
-                HELP
-              </button>
-
-             {/* 🗑️ CLEAR ALL BUTTON - TOP BAR */}
-             {nodes.length > 0 && (
-               <button
-                 onClick={handleClearAll}
-                 className="focus-ring flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-xs text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all shadow-lg"
-               >
-                 <Trash2 size={14} /> CLEAR ALL
-               </button>
-             )}
+             {/* ------------------------------- */}
 
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/60 backdrop-blur-md border border-white/10 text-xs font-mono text-emerald-400 shadow-lg">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/> ONLINE
@@ -946,6 +910,9 @@ function EditorContent({ onBack }: EditorProps) {
               onEdgesChange={onEdgesChange}
               onMove={onMove}
               minZoom={0.1}
+              panOnDrag={panOnDrag}
+              selectionOnDrag={!panOnDrag}
+              selectionMode={SelectionMode.Partial}
             >
                 <Background
                     color="#94a3b8"
@@ -957,6 +924,22 @@ function EditorContent({ onBack }: EditorProps) {
 
                 {nodes.length > 0 && (
                   <Controls showZoom={false} showFitView={false} showInteractive={false}>
+                    <ControlButton
+                       onClick={() => setPanOnDrag(false)}
+                       title="Select Mode"
+                       aria-label="Select Mode"
+                       style={{ background: !panOnDrag ? 'rgba(99, 102, 241, 0.4)' : 'transparent' }}
+                      >
+                    <MousePointer2 size={14} />
+                    </ControlButton>
+                    <ControlButton
+                      onClick={() => setPanOnDrag(true)}
+                      title="Pan Mode"
+                      aria-label="Pan Mode"
+                      style={{ background: panOnDrag ? 'rgba(99, 102, 241, 0.4)' : 'transparent' }}
+                      >
+                    <Hand size={14} />
+                    </ControlButton>
                     <ControlButton
                       onClick={() => zoomIn({ duration: 300 })}
                       title="Zoom In"
