@@ -10,7 +10,7 @@ import {
   Activity, BookOpen, PlayCircle, Layers, Code, Copy, Check, Zap,
   Globe, Mic, Download, ChevronDown, MessageSquare, Send, Paperclip,
   PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw,
-  Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize, Lock, Unlock, History
+  Maximize2, Minimize2, ZoomIn, ZoomOut, Maximize, Lock, Unlock, History,Hand, MousePointer2
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
@@ -23,7 +23,8 @@ import ReactFlow, {
   OnEdgesChange,
   OnNodesChange,
   ReactFlowProvider,
-  useReactFlow
+  useReactFlow,
+  SelectionMode 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomNode from '../components/CustomNode';
@@ -162,7 +163,6 @@ const SystemLogs = () => {
 };
 
 // Empty state shown before any diagram is generated.
-// Sits above the canvas, centered, with a faint floating node-tree illustration.
 const EmptyState = () => {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-10">
@@ -259,6 +259,10 @@ function EditorContent({ onBack }: EditorProps) {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const [prompt, setPrompt] = useState('');
+  const submitForm = () => {
+    const form = document.querySelector("form");
+    form?.requestSubmit();
+  };
   const [isGenerating, setIsGenerating] = useState(false);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [activeTab, setActiveTab] = useState<'ANALYSIS' | 'CODE' | 'CHAT'>('ANALYSIS');
@@ -275,6 +279,8 @@ function EditorContent({ onBack }: EditorProps) {
   const [isRefineMode, setIsRefineMode] = useState(false);
   const clientId = useRef(crypto.randomUUID());
   const roomId = useRef("room_1");
+  //new
+  const [panOnDrag, setPanOnDrag] = useState(true);
   const [errorState, setErrorState] = useState<{
     show: boolean;
     title: string;
@@ -288,6 +294,50 @@ function EditorContent({ onBack }: EditorProps) {
   const [isLocked, setIsLocked] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savedHistory, setSavedHistory] = useState<SavedDiagram[]>([]);
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    nodeId: string | null;
+  }>({ visible: false, x: 0, y: 0, nodeId: null });
+
+  const NODE_COLORS = [
+    { label: 'Default', value: '' },
+    { label: 'Emerald', value: 'emerald' },
+    { label: 'Purple', value: 'purple' },
+    { label: 'Amber', value: 'amber' },
+    { label: 'Rose', value: 'rose' },
+    { label: 'Cyan', value: 'cyan' },
+  ];
+
+  const handleNodeContextMenu = useCallback(
+    (e: React.MouseEvent, node: Node) => {
+      e.preventDefault();
+      setContextMenu({ visible: true, x: e.clientX, y: e.clientY, nodeId: node.id });
+    },
+    []
+  );
+
+  const handleColorSelect = useCallback((color: string) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === contextMenu.nodeId
+          ? { ...n, data: { ...n.data, nodeColor: color } }
+          : n
+      )
+    );
+    setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+  }, [contextMenu.nodeId]);
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.visible) {
+        setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, [contextMenu.visible]);
 
   useEffect(() => {
     setSavedHistory(getHistory());
@@ -646,6 +696,36 @@ function EditorContent({ onBack }: EditorProps) {
     }
   };
 
+  const handleDownloadCode = () => {
+    if (!graphData?.code_snippet) return;
+
+    const blob = new Blob(
+      [graphData.code_snippet],
+      { type: "text/plain" }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const extensionMap: Record<string, string> = {
+      Python: "py",
+      JavaScript: "js",
+      "C++": "cpp",
+      Java: "java",
+    };
+
+    const extension = extensionMap[codeLanguage] ?? "txt";
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `generated-code.${extension}`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
+
   const showBackground = nodes.length === 0;
 
   const { x, y, zoom } = getViewport();
@@ -745,11 +825,30 @@ function EditorContent({ onBack }: EditorProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        submitForm();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
+
+  // 🗑️ Clear All function
+  const handleClearAll = () => {
+    if (nodes.length === 0) return;
+    if (confirm("Are you sure you want to clear the entire diagram? This action cannot be undone.")) {
+      setNodes([]);
+      setEdges([]);
+      setGraphData(null);
+      setIsSidebarOpen(false);
+      console.log("✨ Canvas cleared successfully");
+    }
+  };
 
   return (
     <div className="relative flex h-screen w-screen bg-black overflow-hidden font-sans text-slate-200">
@@ -857,11 +956,14 @@ function EditorContent({ onBack }: EditorProps) {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onMove={onMove}
+              onNodeContextMenu={handleNodeContextMenu}
               minZoom={0.1}
               nodesDraggable={!isLocked}
               nodesConnectable={!isLocked}
               elementsSelectable={!isLocked}
-              panOnDrag={!isLocked}
+              panOnDrag={!isLocked && panOnDrag}
+              selectionOnDrag={!isLocked && !panOnDrag}
+              selectionMode={SelectionMode.Partial}
               panOnScroll={!isLocked}
               zoomOnScroll={!isLocked}
               zoomOnPinch={!isLocked}
@@ -878,31 +980,45 @@ function EditorContent({ onBack }: EditorProps) {
                 {nodes.length > 0 && (
                   <Controls showZoom={false} showFitView={false} showInteractive={false}>
                     {!isLocked && (
-                      <ControlButton
-                        onClick={() => zoomIn({ duration: 300 })}
-                        title="Zoom In"
-                        aria-label="Zoom in"
-                      >
-                        <ZoomIn size={14} />
-                      </ControlButton>
-                    )}
-                    {!isLocked && (
-                      <ControlButton
-                        onClick={() => zoomOut({ duration: 300 })}
-                        title="Zoom Out"
-                        aria-label="Zoom out"
-                      >
-                        <ZoomOut size={14} />
-                      </ControlButton>
-                    )}
-                    {!isLocked && (
-                      <ControlButton
-                        onClick={() => fitView({ padding: 0.15, duration: 500 })}
-                        title="Fit View"
-                        aria-label="Fit view"
-                      >
-                        <Maximize size={14} />
-                      </ControlButton>
+                      <>
+                        <ControlButton
+                          onClick={() => setPanOnDrag(false)}
+                          title="Select Mode"
+                          aria-label="Select Mode"
+                          style={{ background: !panOnDrag ? 'rgba(99, 102, 241, 0.4)' : 'transparent' }}
+                        >
+                          <MousePointer2 size={14} />
+                        </ControlButton>
+                        <ControlButton
+                          onClick={() => setPanOnDrag(true)}
+                          title="Pan Mode"
+                          aria-label="Pan Mode"
+                          style={{ background: panOnDrag ? 'rgba(99, 102, 241, 0.4)' : 'transparent' }}
+                        >
+                          <Hand size={14} />
+                        </ControlButton>
+                        <ControlButton
+                          onClick={() => zoomIn({ duration: 300 })}
+                          title="Zoom In"
+                          aria-label="Zoom in"
+                        >
+                          <ZoomIn size={14} />
+                        </ControlButton>
+                        <ControlButton
+                          onClick={() => zoomOut({ duration: 300 })}
+                          title="Zoom Out"
+                          aria-label="Zoom out"
+                        >
+                          <ZoomOut size={14} />
+                        </ControlButton>
+                        <ControlButton
+                          onClick={() => fitView({ padding: 0.15, duration: 500 })}
+                          title="Fit View"
+                          aria-label="Fit view"
+                        >
+                          <Maximize size={14} />
+                        </ControlButton>
+                      </>
                     )}
                     <ControlButton
                       onClick={() => setIsLocked(prev => !prev)}
@@ -911,6 +1027,15 @@ function EditorContent({ onBack }: EditorProps) {
                     >
                       {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
                     </ControlButton>
+                    {/* 🗑️ CLEAR ALL BUTTON - CONTROLS PANEL */}
+                    <ControlButton
+                      onClick={handleClearAll}
+                      title="Clear All"
+                      aria-label="Clear all nodes and edges"
+                      className="hover:bg-red-500/20 transition-colors"
+                    >
+                      <Trash2 size={14} className="text-red-400 hover:text-red-300" />
+                    </ControlButton>
                   </Controls>
                 )}
 
@@ -918,6 +1043,11 @@ function EditorContent({ onBack }: EditorProps) {
                     <MiniMap
                       className="!border-white/5"
                       nodeColor={(node) => {
+                        const customColor = node.data?.nodeColor;
+                        if (customColor) {
+                          const colorMap: Record<string, string> = { emerald: '#10b981', purple: '#a855f7', amber: '#f59e0b', rose: '#f43f5e', cyan: '#06b6d4' };
+                          if (colorMap[customColor]) return colorMap[customColor];
+                        }
                         const label = node.data?.label?.toLowerCase() || '';
                         if (label.includes('start')) return '#10b981';
                         if (label.includes('end') || label.includes('accept') || label.includes('final')) return '#a855f7';
@@ -981,6 +1111,33 @@ function EditorContent({ onBack }: EditorProps) {
           }}
         />
       ))}
+
+      {contextMenu.visible && (
+        <div
+          className="fixed z-[9999] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-100"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold px-2 py-1.5">Node Color</p>
+          <div className="flex gap-1.5 p-1">
+            {NODE_COLORS.map((c) => (
+              <button
+                key={c.value}
+                onClick={() => handleColorSelect(c.value)}
+                className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-125 ${
+                  c.value === '' ? 'border-slate-500 bg-slate-700' :
+                  c.value === 'emerald' ? 'border-emerald-400 bg-emerald-500/30' :
+                  c.value === 'purple' ? 'border-purple-400 bg-purple-500/30' :
+                  c.value === 'amber' ? 'border-amber-400 bg-amber-500/30' :
+                  c.value === 'rose' ? 'border-rose-400 bg-rose-500/30' :
+                  'border-cyan-400 bg-cyan-500/30'
+                }`}
+                title={c.label}
+                aria-label={`Set node color to ${c.label}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* RIGHT SIDEBAR */}
       {!isFullscreen && (
@@ -1073,9 +1230,23 @@ function EditorContent({ onBack }: EditorProps) {
                               <RefreshCw size={14}/>
                             </button>
                       </div>
-                      <button onClick={handleCopyCode} className="focus-ring flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-colors">
-                        {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'COPIED' : 'COPY'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCopyCode}
+                          className="focus-ring flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-colors"
+                        >
+                          {copied ? <Check size={14} /> : <Copy size={14} />}
+                          {copied ? 'COPIED' : 'COPY'}
+                        </button>
+
+                        <button
+                          onClick={handleDownloadCode}
+                          className="focus-ring flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 text-xs font-bold transition-colors"
+                        >
+                          <Download size={14} />
+                          DOWNLOAD
+                        </button>
+                      </div>
                     </div>
                     <div className="flex-1 rounded-xl bg-black/50 border border-white/10 p-4 overflow-x-auto relative">
                         {isRegeneratingCode && <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-blue-400 text-xs font-bold animate-pulse z-10">REWRITING...</div>}
